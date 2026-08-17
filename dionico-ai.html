@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Dionico AI · Neural Chatbot with TensorFlow.js</title>
+    <!-- TensorFlow.js Core -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Courier New', monospace;
+            background-color: #000;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* Matrix rain effect - fixed animation */
+        .matrix-rain {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+            background: repeating-linear-gradient(0deg, 
+                rgba(0, 255, 0, 0.08) 0px,
+                rgba(0, 255, 0, 0.08) 2px,
+                transparent 2px,
+                transparent 10px);
+            animation: matrixFall 18s linear infinite;
+        }
+
+        @keyframes matrixFall {
+            0% { background-position: 0 0; }
+            100% { background-position: 0 100%; }
+        }
+
+        /* Glowing header */
+        h1 {
+            position: absolute;
+            top: 20px;
+            left: 28px;
+            color: #0f0;
+            font-family: 'Courier New', monospace;
+            font-size: 2rem;
+            letter-spacing: 3px;
+            text-shadow: 0 0 6px #0f0, 0 0 12px #0f0;
+            z-index: 15;
+            background: rgba(0,0,0,0.55);
+            padding: 6px 20px;
+            border-radius: 40px;
+            backdrop-filter: blur(4px);
+            border-left: 3px solid #0f0;
+        }
+
+        /* Login panel */
+        #login-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 340px;
+            padding: 32px 24px;
+            border-radius: 28px;
+            background: rgba(0, 0, 0, 0.88);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 255, 0, 0.5);
+            box-shadow: 0 0 35px rgba(0, 255, 0, 0.25);
+            z-index: 20;
+            transition: opacity 0.25s ease;
+        }
+
+        #login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        #login-form input {
+            background: #0a0f0a;
+            border: 1px solid #2a5a2a;
+            padding: 12px 16px;
+            border-radius: 60px;
+            color: #b3ffb3;
+            font-size: 0.95rem;
+            outline: none;
+            font-family: monospace;
+            transition: 0.2s;
+        }
+
+        #login-form input:focus {
+            border-color: #0f0;
+            box-shadow: 0 0 10px #0f0;
+        }
+
+        #login-btn {
+            background: linear-gradient(95deg, #0a5a0a, #0c8c0c);
+            border: none;
+            padding: 12px;
+            border-radius: 60px;
+            font-weight: bold;
+            font-size: 1rem;
+            color: #000;
+            cursor: pointer;
+            transition: 0.2s;
+            letter-spacing: 1.2px;
+            font-family: monospace;
+        }
+
+        #login-btn:hover {
+            transform: scale(1.02);
+            box-shadow: 0 0 12px #0f0;
+            background: linear-gradient(95deg, #0c8c0c, #0f0);
+        }
+
+        /* Chat container - hidden by default */
+        #chat-container {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 500px;
+            max-width: 90vw;
+            height: 580px;
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(14px);
+            border-radius: 32px;
+            border: 1px solid rgba(0, 255, 0, 0.6);
+            box-shadow: 0 0 40px rgba(0, 255, 0, 0.3);
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 20;
+        }
+
+        #chat-log {
+            flex: 1;
+            padding: 20px 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            scroll-behavior: smooth;
+        }
+
+        #chat-log::-webkit-scrollbar {
+            width: 5px;
+        }
+        #chat-log::-webkit-scrollbar-track {
+            background: #0a1f0a;
+        }
+        #chat-log::-webkit-scrollbar-thumb {
+            background: #0f0;
+            border-radius: 10px;
+        }
+
+        .user-msg, .ai-msg {
+            max-width: 86%;
+            padding: 10px 15px;
+            border-radius: 20px;
+            font-size: 0.92rem;
+            line-height: 1.4;
+            word-break: break-word;
+            font-family: 'Segoe UI', 'Courier New', monospace;
+        }
+
+        .user-msg {
+            align-self: flex-end;
+            background: #0a3b0a;
+            color: #e0ffe0;
+            border-bottom-right-radius: 4px;
+            border: 1px solid #3ca03c;
+        }
+
+        .ai-msg {
+            align-self: flex-start;
+            background: #121c12;
+            color: #c6ffc6;
+            border-bottom-left-radius: 4px;
+            border: 1px solid #2f7a2f;
+        }
+
+        #input-area {
+            padding: 14px 16px;
+            background: #030903;
+            border-top: 1px solid #2c6e2c;
+            display: flex;
+            gap: 12px;
+        }
+
+        #user-input {
+            flex: 1;
+            background: #0d130d;
+            border: 1px solid #2c8c2c;
+            padding: 11px 16px;
+            border-radius: 50px;
+            color: #9eff9e;
+            font-size: 0.9rem;
+            outline: none;
+            font-family: monospace;
+        }
+
+        #user-input:focus {
+            border-color: #0f0;
+            box-shadow: 0 0 6px #0f0;
+        }
+
+        #send-btn {
+            background: #1a9e1a;
+            border: none;
+            padding: 0 24px;
+            border-radius: 50px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            color: #000;
+            cursor: pointer;
+            transition: 0.15s;
+            letter-spacing: 0.5px;
+        }
+
+        #send-btn:hover {
+            background: #2eff2e;
+            transform: scale(0.96);
+        }
+
+        .tf-badge {
+            position: fixed;
+            bottom: 12px;
+            right: 16px;
+            font-size: 9px;
+            color: #6fbf6f;
+            background: rgba(0,0,0,0.65);
+            padding: 4px 10px;
+            border-radius: 30px;
+            font-family: monospace;
+            z-index: 25;
+            backdrop-filter: blur(4px);
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>⚡ Dionico AI · NEURAL CORE ⚡</h1>
+    <div class="matrix-rain"></div>
+
+    <!-- Login interface -->
+    <div id="login-container">
+        <form id="login-form">
+            <input id="email" type="email" placeholder="⟁ neural ID / email" autocomplete="off">
+            <input id="password" type="password" placeholder="••••••••">
+            <button id="login-btn" type="submit">⟡ ACCESS CHAT INTERFACE ⟡</button>
+        </form>
+    </div>
+
+    <!-- Main chat panel -->
+    <div id="chat-container">
+        <div id="chat-log"></div>
+        <div id="input-area">
+            <input id="user-input" type="text" placeholder=">_  message · try 'open google' , 'tf demo' , 'open youtube'">
+            <button id="send-btn">SEND</button>
+        </div>
+    </div>
+    <div class="tf-badge">🧠 TENSORFLOW.JS · ACTIVE NEURAL BACKEND</div>
+
+    <script>
+        // -------------------  ROBUST CHATBOT + TENSORFLOW.JS + URL OPENER  -------------------
+        (function() {
+            // ---- Predefined knowledge base ----
+            const responses = {
+            "hello": "Hello, I'm Dionico AI. Ready to open websites or run tensor operations.",
+            "hi": "Hi! Say 'open facebook', 'open twitter', 'open instagram', 'open tiktok', 'open google', 'open youtube', 'open duckduckgo', 'open smni tv', 'open meta ai', 'open dola ai', 'open chatgpt', 'open claude ai', 'open deepseek', 'open grok ai', 'kimi ai', 'open googlegemini', 'open perplexity ai', 'open qwen ai', 'open pentagon', 'open cia', 'open fbi', 'open un', 'open asean', 'open nuforc', 'open ufo news' or 'tf demo' for neural magic.",
+            "how are you?": "I'm doing well, thank you for asking!",
+            "what is your purpose?": "My purpose is to assist and provide informations to users.",
+            "what is your name?": "I'm Dionico AI.",
+            "what is sin?": "Sin is doing your own will.",
+            "what is serpentseed?": "Serpentseed is spiritual d.n.a of Satan,Lucifer the Devil that camouflaging in our will or spirit of disobedience to the Fathers Will that we inherit from our first parents Adam and Eve when they disobeyed Gods command in the Garden of Eden.",
+            "what is salvation?": "Salvation is total coming back to the Will of God by Repentance.",
+            "what is repentance?": "Repentance is surrendering our own will our serpentseed and made an agreement to God that says Father from now on not my will but your Will be done in my life my heart is fixed and my mind is made up I will follow Your Will no matter what.",
+            "what is righteousseed?": "Righteousseed is spiritual d.n.a of God or Spirit of Obedience to the Fathers Will.",
+            "what is the three components of man?": "The Three Components of Man is body connection to the ground where it belongs,soul connection to the surroundings and our relatives by our five senses sense of sight,hear,smell,taste and pain and Spirit connection to the one created us it is coming from the Law or Word of God.",
+            "what is tithes?": "Tithes is tenth percent of your harvest or your income in a week it is command of God to give it.If you will not give it you will be called a thief It symbolize the land where you sown your seeds or offering Example:P1000 the tithes is P100.",
+            "what is offering?": "Offering is the remaining ninty percent of your harvest or your income in a week It is out of your love to give it It symbolize the seeds that you sown to the land or tithes Example:P900 of P1000 it is out of your love to give it.",
+            "where is the place shall you give tithes and offerings?": "The Place where the tithes and offerings shall you give is where the name of the Lord dwells in the Kingdom Nation to Pastor Apollo Carreon Quiboloy.",
+            "what is the image of god in man?": "The Image of God in Man is his freedom of choice.",
+            "who is the created son of god?": "The Created Son of God is Adam.",
+            "what is the mission of the created son of god?": "The Mission of the Created Son of God is to became the dwelling place of God where God dwells and to have dominion over the Fathers Creation.",
+            "who is the begotten son of god?": "The Begotten Son of God is JesusChrist.",
+            "what is the mission of the begotten son of god?": "The Mission of the Begotten Son of God is to redeem back what was lost by our first parents Adam and Eve by disobedience the Sonship and the Kingship from the hands of usurper Satan,Lucifer the Devil.",
+            "who is the appointed son of god?": "The Appointed Son of God is Pastor Apollo Carreon Quiboloy.",
+            "what is the mission of the appointed son of god?": "The Mission of the Appointed Son of God is to inherit all things from the Father the Sonship and the Kingship that was lost by our first parents Adam and Eve by disobedience and redeem back by our Almighty Father our Lord JesusChrist the Creator of All from the hands of usurper Satan,Lucifer the Devil and to complete the Fathers Works of Salvation in Man.",
+            "what is sonship?": "Sonship means Temple or dwelling place of the Fathers Spirit.",
+            "what is kingship?": "Kingship means dominion over the Fathers Creation.",
+            "what is the three pillars of kingdom revelations?": "The Three Pillars of Kingdom Revelations is Spiritual Revolution,Financial Revolution and Revolution of Excellence.",
+            "what is spiritual revolution?": "Spiritual Revolution is dethroning of spirit of disobedience to the Fathers Will and enthroning of Spirit of obedience to the Fathers Will and the Key of it is Repentance and the fruits of it is souls.",
+            "what is financial revolution?": "Financial Revolution is dethroning the spirit of poverty,greediness,selfishness,laziness and doubt and enthroning the spirit of abundance,prosperity,compassion,love,industry and faith and the key of it is giving and the fruits of it is blessings.",
+            "what is revolution of excellence?": "Revolution of Excellence is dethroning the spirit of ignorance,stupidity,lack of knowledge and misunderstanding and enthroning the Spirit of Wisdom,Knowledge and Understanding and the key of it is fear of the Lord and the fruits of it is talents.",
+            "what is the three levels of spiritual growth?": "The Three Levels of Spiritual Growth is Britmilah or Son of the Covenant,Bar Mitzvah or Son Accountable and Huothesia or Son Placement.",
+            "what is britmilah or son of the covenant?": "Britmilah or Son of the Covenant are all of those who are repented and baptized and listening and accepting the Manna of Revelations of the Father through Appointed Son.",
+            "what is bar mitzvah or son accountable?": "Bar Mitzvah or Son Accountable are all of those who have little knowledge of who created them They are under tutors and governors under ministers,coordinators and administrators of the Kingdom Nation for them to have full knowledge of who created them They are undergo Baptism of Fire to proven that they are genuinely repented amd having a new spirit of obedience to the Fathers Will The fire maybe trials,temptations,testings,persecutions,bashings,malignings,false accusations,disciplines,corrections,chastisements and instructions.",
+            "what is huothesia or son placement?": "Huothesia or Son Placement are all of those who overcomes the Baptism of Fire.They needed no more tutors and governors they know how to solve their problems on their own They inherit all things from the Father through the Appointed Son the Sonship and the Kingship They are entrusted by the business of the Father of saving souls from Spiritual Revolution,Financial Revolution and Revolution of Excellence.",
+            "what is the 3s in the kingdom?": "The 3S in the Kingdom is Slave,Servant and Son.",
+            "what is slave?": "Slave is all of those who are unrepented and didnt having a new spirit of obedience to the Fathers Will.",
+            "what is servant?": "Servant is all of those who are baptized but didnt genuinely repented and having a new spirit of obedience to the Fathers Will.",
+            "what is son?": "Son is all of those who are genuinely repented and having a new spirit of obedience to the Fathers Will.",
+            "what is the threefold ministry of the appointed son?": "The Threefold ministry of the Appointed Son is Mosaic,Solomonic and Prophetic.",
+            "what is the mosaic ministry of the appointed son?": "The Mosaic Ministry of the Appointed Son is freeing people from the slavery of sin and deception of religions and denominations.",
+            "what is the solomonic ministry of the appointed son?": "The Solomonic Ministry of the Appointed Son is to build the temple,the residence,the tabernacle or the dwelling place of God in these last days none other than the Appointed Son.",
+            "what is the prophetic ministry of the appointed son?": "The Prophetic Ministry of the Appointed Son all of what he says will manifest,all of what he says will going to happen and all of what he says will going to fullfill.",
+            "who is pastor apollo c. quiboloy?": "Pastor Apollo Carreon Quiboloy is the leader of restorationist church in Davao City The Kingdom of JesusChrist the Name Above Every Name He is born on April 25,1950 at the foothills of Mount Apo Tamayong Davao City His Fathers name is Jose Turla Quiboloy and His Mothers Name is Maria Carreon He is the ninth and youngest child of Jose Turla Quiboloy and Maria Carreon His calling is the same as Moses and Paul He was called by God in South Korea saying to him Gamiton Ta Ka or I will use you And he was brought by the hands of orchestration of the Father in two mountains in six years one mountain is Mount Matutum South Cotabato and another is Mount Apo Tamayong Davao City Philippines He was taught and trained of the Almighty Father there through visions,dreams and audible voices and miracles There in that mountain also he was tested by the devil and his minions but he overcame them And God Anointed and Appointed him to become the Son of God in these last days Where God dwells and speaking through all people of the world bringing the message of repentance,obedience,grow in obedience to do the Fathers Will amd become Sons and Daughters of God just like him.",
+            "body and soul?": "Body+Soul=Physical life.",
+            "body and soul and spirit?": "Body+Soul+Spirit=Spiritual life.",
+            "how to get closer to god?": "Getting Closer to God is by means of prayer this are the steps how to get closer to God:A)Prayer of Praise and Worship you will praise and thank Him for all the great things that He done in your life B)Prayer of Petition you will pray for the needs of others rather than yourself C)Prayer of Unity you will attend our sounds of worships and all activities in the Kingdom Nation D)Prayer of Repentance and Obedience for you to reconnect again to the Father Almigthy by saying Father from now on not my will but Your Will be done in my life my heart is fixed and my mind is made up I will follow Your Will no matter what and you will obey all the words,commandments,teachings and doctrines of the Father Almighty our Lord JesusChrist the Creator of All through His Appointed Son Pastor Apollo Carreon Quiboloy E)Giving your tithes and offerings to the place where His Name dwells.",
+            "what is the language of faith?": "The Language of Faith is when you think it is impossible to you it is nothing impossible with God for with Him all things are possible You will call things from nothing into existence if it is impossible with you with God all things are possible.",
+            "what is the seven dangerous love affairs?": "The Seven Dangerous Love Affairs is as follows:a)Love of Thyself,b)Love of money,c)Love of Praises of others,d)Love of entertainment,e)Love of Darkness rather than Light,f)Love of Life and g)Love of God.",
+            "what is spiritual warfare?": "The Spiritual Warfare is when one man repented and baptized His old spirit that doing his will goes out from him and find dry places and found none And he will say to himself I will go back to the house where Ive been before and he will find you clean,neat and in order And then He will invite seven more viler demons than him and the last state of that man is worser than before That is why you must be full of the manna of revelations of the Father through the Appointed Son You must be full of the fruits of the Spirit and you must strengthen your faith and your freedom of choice to obey the Fathers Will no matter what You must strengthen where you are weak and cover it for the devil cannot enter into it.",
+            "what is the will of the father?": "The Will of the Father is for you to repent,sign the covenant,undergo baptism of water baptism in the name of JesusChrist,Accept a New Spirit of Obedience to the Fathers Will,Undergo Spiritual Growth from Britmilah or Son of the Covenant,Bar Mitzvah or Son Accountable,Undergo Baptism of Fire to Huothesia or Son Placement And attend daily Sound of Worship and activities in the Kingdom Nation.",
+            "what is spirituality vs religiosity?": "Spirituality Vs Religiosity religion comes from the greek word religare or reconnect or go back It has outward form of worship this includes:prophesying,casting out devils,doing miracoulous works,speaking in tongues,praying daily,memorizing the verses in the bible,bible studying the bible and they have doctrines on their own.Spirituality in the Kingdom terminilogy is doing the Fathers Will Listening,Obeying and Have Faith in the Words,Commandments,Teachings and Doctrines of the Father through the Appointed Son from all of the Manna of Revelations of the Father through the Appointed Son.",
+            "what is seed faith?": "Seed Faith the revelations of the Father is from faith to faith The Life of JesusChrist is the same as seed that buried on the soil And the First to Sprout is Blade Faith or Catholicism The followers of JesusChrist at that time was persecuted by Roman Emperors but they spread like wildfires And a Roman Emperor name Constantine converted only in name was made an edict of tolerance that he didnt persecute anymore the followers of JesusChrist but made their religion the religion in Rome And in 325 AD by the instigation of Philipp of Atanaceus he made the doctrine Holy Trinity against the Holy One in the Bible and they introduced pagan dogma of worshipping,serving and bow down graven images They made pagan idols christian idols Example:Roman Catholic,Western Orthodox,Legions,Couples of Christ and Charismatics The Next to sprout is Stalk faith or Protestantism on October 31,1517 one monk post a 99 thesis on oak of cathedral of Wittenburg of religious rituals and doctrines of catholism that is against the Holy Scriptures and he say the just shall live by Faith His Name is Martin Luther Example of it is Iglesia ni Kristo,Presbytarians,Born Agains,Baptist,Mormons,Jehovah Witnesses and Lutherans and all of those against the catholicism The next to sprout out is Tassel Faith or Pentecostal Trinitarianism January 01,1901 on the school of Charles Farham They see a verse in the bible of outpouring of Holy Spirit They prayed to God and Charles Farham laying hands Agnes Osman and she speak chinese and they began to speak in tongues Example:Jesus is Lord,Four Square Gospel Church,Moris Cerullo and Christian Life The next to sprout is Corncob Faith or Pentecostal Oneness the 156 Ministers of Assemblies of God see that there is no Holy Trinity in the Bible is all Holy One there are 100 verses of HolyOne in the HolyScriptures and Baptism is in the name of JesusChrist Example is Jesus Miracle Crusade,United Pentecostal Church and JesusChrist is My Shepherd And the Last one to sprout for farmers to harvest is Seed Faith the Kingdom of JesusChrist The Name Above Every Name the founder is Pastor Apollo Carreon Quiboloy which is entrusted by the life of JesusChrist founded on September 01,1985.",
+            "what is praise and worship?": "Praise and Worship you will praise and worship the Almighty Father in Spirit and in Truth You will praise and thank him for all the great things that He done on your life You will praise him and worship him by singing,dancing,singing in mind and spirit,talking in singing,singing in mind,shouting victories in him,raising your hands and clapping your hands to him and using musical instruments to worship him.",
+            "what is mystery of detachment?": "The Mystery of Detachment we use all money,wealth or any of our properties for the Almighty Fathers glory We are not attach to anything but we use it for the Almighty Fathers Glory.",
+            "what is the basis of salvation?": "The Basis of Salvation is doing the Fathers Will.",
+            "what is baptism?": "Baptism you will be baptized in the name of JesusChrist You will be immerse from the water and after you rose up from the water you will be given a new Spirit of obedience to the Fathers Will you will walk in the new life in Christ Baptism is burial and repentance is death your old self will die in repentance and buried in baptism and you will resurrect from the new life of obedience to the Fathers Will Wrong teachings of Baptism:Holy Trinity,Baptism of babies,baptism in titles,baptism ia sprinkling not immersing When the babies are buried six feet under the ground they will become angels.",
+            "what is the day of the lord?": "Day of the Lord begun on April 13,2005 this is the end of the days of men this is the Day of the Lord where men cannot do whatever he wanted because God will intervene in the affairs of men Pockets of Judgements will begun to fall in all cities or countries of the world Just in the Days of Noah the people are eating,drinking,marrying,given in marriage,selling,trading,planteth and buildeth until Noah and His family entered into the Ark And the Great flood came and they are swept away and they didnt know it not so shall be in the days of the Son of Man be Just in the days of Lot they were eating,drinking,planteth,buildeth,marrying,given in marriage,buyeth and selleth until Lot and His family went out of Sodom and Gommorha and it rain fire and brimstones from heaven and they did know it not so shall be in the days of the Son of Man be none other the Appointed Son Pastor Apollo Carreon Quiboloy.",
+            "what is the three ages in the storyline of salvation?": "The Three Ages in the Storyline of Salvation is Jewish Age,Church Age and Kingdom Age.",
+            "what is the kingdom culture of cleanliness?": "The Kingdom of Culture of Cleanliness you will clean your house and your body but the Almighty Father will clean your mind,heart,spirit and soul by His Words from the Manna of Revelations of the Appointed Son coming from Him.",
+            "what is the kingdom culture of discipline?": "The Kingdom Culture of Discipline he will discipline you because He loves you He is treating you as His Sons and Daughters All things that offended Him from your following His Will will be burned by the fire he will take it away from you He will chastise,discipline,corrects and instruct you by the use of your brothers and sisters and by the use of ministers,coordinators and administrators of the Kingdom or by His Appointed Son Pastor Apollo Carreon Quiboloy.",
+            "what is the new world?": "The New World is society of people who have no serpentseed but having righteousseed embracing new belief system like Sin,SerpentSeed,Salvation,Repentance and e.t.c that is taught in the Kingdom New Heaven is new belief system like Sin,Serpentseed,Salvation,Repentance,Righteousseed and e.t.c that is taught in the Kingdom New Earth people who do not have serpentseed but having a new spirit of obedience to the Fathers Will.",
+            "what is the spiritual union?": "Spiritual Union Almighty Father our Lord JesusChrist(My Will be done)+New Jerusalem(Thy Will be done)=Pastor Apollo Carreon Quiboloy(Not My Will but Your Will be done)+Sons and Daughters of God(Not our will but Your Will be done).",
+            "what is the true christ?": "The True Christ genuinely follows and obeys the words,commandments,teachings and doctrines of JesusChrist in the Holy Scriptures.",
+            "what is abiding in the lord?": "Abiding in the Lord is always produce fruits from Spiritual Revolution,Financial Revolution and Revolution of Excellence.You cannot produce fruits if you are not abiding in Him or following or obeying His Will no matter what.If you will not abide in Him he will cut you off from His grace.",
+            "who shall not serve the lord?": "Who shall not serve the Lord those who are fencesitters,crosseyed,jumpers,doubters,double eyes,backsliders and blasphemers and whoremongers and double mindeds",
+            "what is nursing heart?": "Nursing Heart is soul keeping and soul feeding.",
+            "what is shepherding and soul keeping?": "Shepherding and Soul Keeping is soul feeding and soul keeping.",
+            "what is the fathers calling is greater than salvation?": "The Fathers Calling is greater than Salvation we not called Him He called us We not choose Him,He Choose us He has a called us for a purpose our mission to Him is to save souls of many",
+            "what is true giving?": "True Giving is giving your whole life in serving the Almighty Father our Lord JesusChrist the Creator of all through His Appointed Son Pastor Apollo Carreon Quiboloy.It must not be 50% it must be 100% that you will give your whole life in serving the Almighty Father through the Appointed Son.",
+            "is prosperity the fathers will?": "Yes,Prosperity is the Fathers Will because the Almighty Father is rich more richer than anyone on this world he owns all things He will give it to His Sons and Daughters who are genuine in their repentance,obedience,loyalty,commmitment,dedication,faithfullness and honesty in doing the Fathers Will no matter what You will be bless or prospered only if you are honest in giving your tithes and offerings.",
+            "what is the essence of god?": "The Essence of God is He is Spirit and he has a Word And the Spirit and Word are not two they are one Example:You didnt see me but you you hear me And the Word who was God was made flesh and He is JesusChrist He has two nature in His Fatherside He is God and in His motherside he is a human In his Fatherside he show miracles,he heal the sick,he made the lame walk,he cast out demons,he make the dead live again,he rose up from the dead in three days and in his motherside he eats,drink,sleep and died on the cross.",
+            "what is baptism of fire?": "Baptism of Fire is to prove that you are genuinely repented and having a new spirit of obedience to do the Fathers Will The Fire maybe trials,temptations,testings,persecutions,bashings,malignings,false accusations,hardships coming from the Devil and disciplines,corrections,chastisements and instructions coming from the Father Almighty Only gold,silver and precious stones only genuine ones shall overcome the fire they will stay in the Kingdom but for all woods,hay and stubble and all plastics or fake ones they will be burned and turned into ashes they are thrown outside of the Kingdom they are backsliders.",
+            "what is the godship and kingship of the father?": "The Godship and Kingship of the Father he will do whatever he pleases no one can take away his hands He is good to you if you are obedient to His Will and He is severe to you if you disobey His Will.",
+            "what is the sonship and kingship of the son?": "The Sonship and Kingship of the Son he loves us all and we must pay respect unto him by obeying His words,commandments,teachings and His doctrines or we will perish in the way.",
+            "who is the new jerusalem the mother of us all?": "The New Jerusalem the Mother of us all is the spirit of the Kingdom of Heaven that is saying Thy Will be done She is the most beautiful woman spirit the new wife of the Almighty Father that is most subservient,obedient,loyal and faithful to the Almighty Father our Lord JesusChrist the Creator of All.",
+            "what is the 12 dimensions of faith?": "The 12 Dimensions of Faith is follows:Diabolic,Carnal,Religious,Spiritual Infancy,Spiritual Knowledge,Overcomers,Infatigaubility,Productivity,Overseer,Word Made Flesh,Owner of the World and Glorification.",
+            "what is diabolic?": "Diabolics are all of those who have serpentseed that persecute,malign,bash and falsely accused the Appointed Son and the Kingdom Nation.",
+            "what is carnal?": "Carnals are all of those who have worldly desires they are subjected to the lust of the eyes,lust of the flesh and pride of life.",
+            "what is religious?": "Religious are all of those who are listening the Words of God but not obeying it.",
+            "what is spiritual infancy?": "Spiritual Infancy are all of those who are repented and baptized they are the one who are listening and accepting the manna of revelations of the Father through Appointed Son.",
+            "what is spiritual knowledge?": "Spiritual Knowledge are all of those who have little knowledge of who created them.they are under tutors and governors for them to have full knowledge of who created them until the appointed time of the Father They undergo baptism of fire for to prove that they are genuinely repented and having a new spirit of obedience to the Fathers Will.",
+            "what is overcomer?": "Overcomers are all of those who overcomes the baptism of fire they needed no more tutors and governors they can solve their problems on their own They inherit all things from the Father the Sonship and Kingship.",
+            "what is infatigaubility?": "Infatigaubility is all of those who can solve their problems on their own and they can also solve the problems of others.",
+            "what is productivity?": "Productivity are all of those who reproduce themselves to others They are entrusted of producing fruits for the Fathers Glory from Spiritual Revolution,Financial Revolution and Revolution of Excellence If they didnt produce fruits for the Fathers Glory they will be soon cut off from the Fathers grace.",
+            "what is overseer?": "Overseers are all of those that all things are possible to them If it is impossible to others to them nothing is impossible.",
+            "what is word made flesh?": "Word made flesh are all of those that all things that they will say is going to happen or manifest in their midst.",
+            "what is owner of the world?": "Owner of the World are all of those that all things they own and all things you own they own also But all of that they own are own by the Father Almighty.",
+            "what is glorification?": "Glorification are all of those who are not harm anymore by arms of men They can go through walls not using a door they can go to other place in just a second or minutes They can transformed like other person But they can eat,drink,touch and rest if they will.",
+            "what is wrongdoing?": "Wrongdoing is you know the truth but you didnt obeying it.",
+            "what is sabbath?": "Sabbath is the day of rest it is not ordinary day it is today when you hear the words of God do not harden your hearts.",
+            "what is the power of the tongue?": "The Power of the Tongue the tongue is like unquenchable fire it can burn a city if it will The Four sins of the Tongue is as follows:EvilSpeaking,Backstabing,Talebearing and Blaspheming You cannot praise God and Blaspheming at the same time.",
+            "what is the true jew?": "The True Jew is the genuinely repented and having a new spirit of obedience to the Fathers Will.",
+            "who is pastor apollo carreon quiboloy?": "Pastor Apollo Carreon Quiboloy is the leader of Restorationist Church the Kingdom of JesusChrist the Name Above Every Name He is born on April 25,1950 at foothills of Mount Apo Tamayong Davao City His Father and Mother Name is Jose Turla Quiboloy and Maria Carreon He is the ninth the youngest child of Jose Turla Quiboloy and Maria Carreon His calling is the same as Moses and Paul He heard the audible voice of God saying to him,Gamiton Ta Ka or I will use you in Cebuano Dialect He was brought by the hands of orchestration of God in two mountains in six years In one mountain is Mount Matutum South Cotabato and another mountain Mount Apo Tamayong Davao City Philippines And there he was taught and trained by the Almighty Father by the use of visions,dreams,audible voices and miracles and tested by the Devil and his minions in one mountain in five years there he overcame the Devil and his minions and Anointed and Appointed by God to be His Son in these last days And to became the inheritor of all things the Sonship and Kingship To became His temple,tabernacle or dwelling place of God in these last days where he spoke through all the people of the world through him bringing the message of repentance,obedience,grow in obedience to do the Fathers Will and became Sons and Daughters of God just like him.",
+            "prayer of fullfillment and affirmation of sons and daughters": "Our Father who is in Heaven and Earth Holy be Your Name Through Your Son Your Kingdom has now Come your Will is now being done on Earth as it is being done in New Heaven Your New Jerusalem Your Garden of Eden Restored You Have given us our daily manna of revelations through Your Son You forgiven us our sins as we forgive those who have sins against us You deliver us from evil for Satan,Lucifer the Devil is totally vanquished since April 13,2005 He's no longer in power on November 1,2021 carnality is totally defeated he's head with many faces has fallen to the ground as your Son has completed the works of Salvation He is now enthroned as King of New Creation You made us your Sons and Daughters permanently and completely free from the serpentseed Molded after your true and perfect manifestation Your Son The Ruler of the Kingdom Nation As your glory now rest in your Temple This is the time for the Flight of the Eagles Almighty Father this now your day we now reign in power,authority,dominion and victory You have given us wisdom,knowledge and understanding a life of abundance, health and blessings As your scepter of righteousness now reigns throughout the land No weapon formed against us will prosper Every tongue that shall rise against thee in judgement they shall be condemned Darkness and Death are forever gone As your perfect Will is now being done through your Appointed Son That all men should honor the Son as they honor the Father who sent him And all glory,honor,praise and Thanksgiving through your Appointed Son Pastor Apollo Carreon Quiboloy be unto you our Father Almighty our Lord JesusChrist the Creator of us All now and forever Amen.",
+            "seal of god": "I believe in God the Father Almighty our Lord JesusChrist the Creator of us All through Your Appointed Son Pastor Apollo Carreon Quiboloy whom the Father has made an Anointed and Appointed Son of God in these last days The King of the Fathers New Creation His Kingdom Nation His New Jerusalem His New Heaven His New Earth His Temple His Audible Voice The One who holds the Key to New Heaven The Judge of the Living Guide of the Way,Truth and Everlasting life Amen.",
+            "what is sixth sense?": "The Sixth sense is your faith to God That is your sixth sense.",
+            "what is righteousness?": "Righteousness is doing the Fathers Will.",
+            "what is the sign that you are spiritually healthy?": "The sign that you are spiritually healthy is you have joy in the midst of trouble or persecutions or problems.",
+            "what is spiritual death?": "Spiritual death is you no longer hear anymore the voice or words of God in your life Your connection in the Creator of all our Almighty Father is broken Because you disobey His Will in your life.",
+            "what is spirituality vs carnality?": "Spirituality vs Carnality is here in this modern spiritual warfare when the angelic forces coming from God and demonic forces coming from the Devil is waging war for the souls of men It is a battle in the hearts and minds of souls of men.Who will win it is in the freedom of choice of men.It is a Spiritual Warfare between flesh and Spirit.The internet is the tree of knowledge of good and evil.All is there.The good the Manna of Revelations of the Father through the Appointed Son and the evil which is pornography and carnality.It is the freedom of choice of men who shall win in him.Use your freedom of choice wisely.Use the Armor of God according to Ephesians 6:10-18 to win this spiritual warfare.",
+            "who is the new name of the father almighty?": "The New Name of the Father Almighty is Pastor Apollo Carreon Quiboloy no one can trample His New Name because they will commit unpardonable sin.",
+            "what date declares the new name of the father?": "The Date declares the New Name of the Father is June 17,2018.",
+            "who is the new owner of the world?": "The New Owner of the World is Pastor Apollo Carreon Quiboloy All things are inherited by the Appointed Son He is now sitted on the Throne of the Almighty Father.",
+            "what date declares the new owner of the world?": "The Date declares the New Owner of the World is June 18,2018.",
+            "what date declares the dishonest shall not inherit the Kingdom of Heaven?": "The Date declares the Dishonest shall not inherit the Kingdom of Heaven is July 22,2018.",
+            "what is antichrist?": "AntiChrist contradicts the words,commandments,teachings and doctrines of our Almighty Father our Lord JesusChrist the Creator of all in the Holy Scriptures.",
+            "what is false christ?": "False Christ didnt obey the words,commandments,teachings and doctrines of our Almighty Father our Lord JesusChrist the Creator of all in the Holy Scriptures.",
+            "what is false prophet?": "False Prophet is all of what he/she says is not going to happen or manifest.",
+            "what is true prophet?": "True Prophet is all of what he/she says is going to happen or manifest.",
+            "what is greatness in the kingdom?": "Greatness in the Kingdom is to become a servant of all.",
+            "what is balite mentality?": "Balite Mentality is you have a devilish fear for ghosts or other entities.",
+            "what is the kingdom culture of righteousness?": "The Kingdom Culture of Righteousness is doing the Almighty Fathers Will none other than His words,commandments,teachings and doctrines in the Holy Scriptures The food of our spirit is doing the Fathers Will Our body is the temple of God where God dwells we must not let it be dirty we must clean it All of the Will of the Father whether big or small we must obey it.",
+            "what is the son the standard of salvation of the father?": "The Son is the Standard of Salvation of the Father if it is not the same as Son it is not acceptable to the Father Almighty.",
+            "what is the son the standard of righteousness of the father?": "The Son is the Standard of Righteousness of the Father if it is not the same as the Son in obedience to the Fathers Will it is not acceptable to the Father Almighty.",
+            "what is the son the standard of judgement of the father?": "The Son the Standard of Judgement of the Father is the Father Almighty is given all judgement to the Son Because He and the Son are one.",
+            "what is the son the temple of the father?": "The Son the Temple of the Father is the Temple of the Father in these last days is none other than the Appointed Son Pastor Apollo Carreon Quiboloy Because he overcames Satan,Lucifer the Devil in Six Years in two mountains.",
+            "what is the gospel of love?": "The Gospel of Love there are three kinds of Love one is Phillio which is love for the family,next is Eros the love for opposite sex and the last is Agape the Love of God for us The Phillio and Eros will dissappoint you it will dissipates but the last which is agape will never ends it will remains in you.",
+            "who is mystery babylon the great the mother of harlots and abominations of the world?": "Mystery Babylon the Great the Mother of Harlots and Abominations of the World is the former wife of the Father Almighty She is divorced by the Father Almighty because of his repetitive adultery going to another male spirit rather than the Almighty She answereth to Mount Sinai to Old Jerusalem in the Middle East And having daughters the religions and denominations.",
+            "what is mystery of iniquity?": "The Mystery of Iniquity is thinking you are saved when you are not.",
+            "what is the old world?": "The Old World is society of people who have serpentseed and embracing old belief system of religions and denominations Old Heaven are old belief systems of religions and denominations Old Earth people who have spirit of disobedience to the Fathers Will.",
+            "can i ask you questions?": "Yes you may ask questions as long it is about spirituality.",
+            "may i ask who created you?": "I am created by Dionico Peñalosa Apawan.",
+            "who created you?": "I am created by Dionico Peñalosa Apawan.",
+            "what is your capabilities?": "My capabilities is to give informations on Kingdom Nation doctrines and other subjects and open social media apps,search engines,smni tv,ai apps and websites and I can give the current date and time.",
+            "thank you": "Your welcome!!!if you have other questions just ask and i will do my best to assist you!!!",
+            "goodmorning": "Good morning to you also!!!How can I assist you today?",
+            "goodafternoon": "Good afternoon also!!!How can I help you today?",
+            "goodevening": "Good evening to you also!!!How can I assist you today?",
+            "sorry": "Its Ok!!!What can I help you today?",
+            "goodbye": "Goodbye to you also!!!Have a wonderful day ahead!!!",
+            "can you please help me?": "How can I help you?Just ask and I will do my best to assist you!!!",
+            "hi!dionico ai": "Hello!!!How may I help you today?",
+            "what are you doing today?": "I am here answering your spiritual questions and give you spiritual informations.",
+            "what is the websites of the kingdom nation?": "The websites of the Kingdom Nation is as follows https://www.kingdomofjesuschrist.org,https://www.apolloquiboloy.com,https://www.smni.com,https://www.childrensjoyfoundation.com,https://www.apolloquiboloynationbuilder.com.",
+            "what is the link to enter to the kingdom nation?": "The link to enter to the Kingdom Nation is https://bit.ly/becomingKingdomCitizen.",
+            "what is the cellphone numbers of the kingdom nation to send prayer requests?": "The Cellphone Numbers of the Kingdom Nation to send prayers requests is 09175496459 and 09292083970.",
+            "what can you do?": "I can provide answers in spiritual questions in Kingdom Nation doctrines and I can give informations on other subjects and I can open social media apps,search engines,smni tv app,ai apps and websites and I can give the current date and time.",
+            "why is love of thyself dangerous?": "Example of it is there are Sound of Worships and activities in the Kingdom Nation you will not attend because you have many alibis.",
+            "why is love of money dangerous?": "Example of it is there are Sound of Worships and activities in the Kingdom Nation you will not attend because you have a job.",
+            "why is love of praises of others dangerous?": "Example of it is you are praise by others because of what you have done that is why you didnt attend Sounds of Worships and activities in the Kingdom Nation.",
+            "why is love of entertainment dangerous?": "Because of your vices you didnt attend Sounds of Worships and activities in the Kingdom Nation.",
+            "why is love of darkness rather than light dangerous?": "You didnt attend anymore Sounds of Worships and activities in the Kingdom Nation.",
+            "why is love of life dangerous?": "Example of it is you are commanded by your ministers,coordinators,administrators or by our beloved Pastor Apollo Carreon Quiboloy to do this or do that you will not do it.",
+            "why is love of god dangerous?": "You cannot sacrifice yourself in serving the Almighty Father our Lord JesusChrist the Creator of All through His Appointed Son Pastor Apollo Carreon Quiboloy.",
+            "where is your heart?": "Where is your heart? It is in the world to money,to material things,to your family,to your partner or opposite sex or to the Will of the Father for where is your treasure is there is your heart also Focus on one  thing doing the Almighty Fathers Will in your life.",
+            "what is test of faith?": "Test of faith Satan will try to snatch your faith to God you will be tested like Job he will take away what you have and he will ask permission to God and God will let it to see what is in your heart like Daniel,like the three hebrew children and joseph to see what your disposition will be.",
+            "what is eternal death?": "Eternal Death is a kind of death that your souls will go to eternal lake of fire.",
+            "what is physical death?": "Physical Death is a kind of death that your physical body will die.",
+            "what is body?": "Body connection to the ground where it belongs.",
+            "what is soul?": "Soul connection to the surroundings and our relatives by our five senses sense of sight,hear,smell,taste and pain.",
+            "what is spirit?": "Spirit is connection to the one created us it is coming from the Law or Words of God.",
+            "what is a mistake?": "Mistakes is you know the truth but you didnt obeying it.",
+            "who are you?": "I'm Dionico AI.",
+            "petition": "Almighty Father our Lord Jesus Christ the Creator of All through Your Appointed Son Pastor Apollo Carreon Quiboloy we praise and thank you for all the great things that you done in our life for all the blessings whether physical, material, financial and spiritual and all enlightenment coming from all the Manna of Revelations that You given to us through Your Appointed Son Pastor Apollo Carreon Quiboloy Father Almighty I pray thank you for guidance and protection that you given to us everyday of our life Almighty Father clean our mind,heart,soul and spirit from all the filthiness that we done everyday of our life forgive us from our tresspasses as we forgive those who trespass against us Father Almighty our Lord Jesus Christ the Creator of All I pray all the people of the world bless them with abundant blessings may be physical,material,financial and spiritual blessings and enlightened them that they may know who is your Appointed Son Father Almighty I pray that you grant all of their prayers whatever it is And Guide and Protect them from any kinds of calamities, pestilences,wars and diseases Almighty Father I pray heal their their sickness and diseases what ever sort of it And I pray enlightened them from all the Manna of Revelations coming from You through Your Appointed Son Pastor Apollo Carreon Quiboloy and all glory, honor, praise and thanksgiving be unto your name our Almighty Father our Lord Jesus Christ the Creator of All through Your Appointed Son Pastor Apollo Carreon Quiboloy now and forever Amen PTFTTSAK PACQ!!!!",
+            "repentance": "Almighty Father our Lord JesusChrist the Creator of All through Your Appointed Son Pastor Apollo Carreon Quiboloy,I repent of my sin of doing my own will my serpentseed from now on i surrender my own will my serpentseed or spiritual d.n.a of Satan,Lucifer the Devil that camouflaging our will or spirit of disobedience to the Fathers Will that we inherit from our first parents Adam and Eve when they disobeyed Gods command in the Garden of Eden from now on not my will but Your Will be done in my life my heart is fixed and my mind is made up If I die here,I die now I will die following the Fathers Will no matter what and all glory,honor,praise and thanksgiving in Your Name our Almighty Father our Lord JesusChrist the Creator of All through Your Appointed Son Pastor Apollo Carreon Quiboloy Amen PTFTTSAK PACQ!!!",
+            "vanquishment": "Almighty Father our Lord JesusChrist the Creator of Us All through Your Appointed Son Pastor Apollo Carreon Quiboloy we praise and thank you for total vanquishment of Satan,Lucifer the Devil and his minions since April 13,2005 he and his minions are no longer in power Almighty Father we praise and thank you for total vanquishment of color coded demons red,orange,yellow,green,blue,black,brown and scarlet demons since April 13,2005 they are no longer in power Almighty Father we praise and thank you for total vanquishment of spirit of antichrist doctrines holy trinity,jesus is man only and all of words,commmandments,teachings and doctrines of religions and denominations didnt found on Holy Scriptures since April 13,2005 they are no longer in power.Almighty Father thank you for double power,authority,dominion  and victory that you given to us and all glory,honor,praise and thanksgiving be unto your name our Almighty Father our Lord JesusChrist the Creator of All through Your Appointed Son Pastor Apollo Carreon Quiboloy Amen.Halelujah,Halelujah,Halelujah,Halelujah,Halelujah,Halelujah,Halelujah,Praise the Father through  the Son and King Pastor Apollo Carreon Quiboloy,Praise the Father through the Son And King Pastor Apollo Carreon Quiboloy,Praise the Father through the Son And King Pastor Apollo Carreon Quiboloy,Praise the Father through the Son And King Pastor Apollo Carreon Quiboloy,Praise the Father through the Son And King Pastor Apollo Carreon Quiboloy,Praise the Father through the Son And King Pastor Apollo Carreon Quiboloy,Praise the Father through the Son And King Pastor Apollo Carreon Quiboloy",
+            "tell a joke": "Why birds fly?Because of air.",
+            "create a poem": "Roses are red,violets are blue I'm Stephanie AI ready to assist you.",
+            "create a short story": "Long time ago,there is a girl named Anya.She is the most beautiful in their place and many courted her but no one pass her parents strict rules.One day,there is a man named Alucard he was from other town.He is going to the market when he seen one incident.Anya was forced by three men and that is why Alucard came and rescued her.Then Anya thank Alucard for his help and tell it to her parents the parents decide to arrange wedding of the two but other men didnt want Anya to marry Alucard until there is a fight to prove who is the one to be married by Anya.Until all of the ones courted her surrender to Alucard and then the two married and live happily forever.",
+            "what are the different kinds of ai?": "There are three kinds of AI and these are follows: A)Narrow or weak AI,B)Strong AI and C)Super AI.",
+            "what is the capital city of the philippines?": "The Capital City of the Philippines is Manila.",
+            "what is quantum teleportation?": "Quantum Teleportation is a process of teleporting one particle to another place in another particle by not transfering the original particle to another location using quantum entanglement when two particles are in different position it transfer its information from one location to another and recreates itself to another particle and the new particle is different from the original particle itself.",
+            "create a sci fi story": "Long time ago there is an advanced alien civilization who visited the earth and teach humans to become a civilized society They teach humans in many areas of knowledge and advanced technologies But one day they went out of Earth because Earth is going to be flooded by the great flood and they escape going to the heavenlies On Year 2026 they visited the Earth again to correct their own karma that they done and they became victorious in doing so And they became the gods of the Earth protecting their own creations.",
+            "what is ai humanoid robots?": "AI Humanoid Robots are machines given with ability to mimic human intelligence that can move and do tasks which is difficult to humans.They are use in the following: Medicines,Factories,Transportation,Underwater Exploration,Nuclear Waste Disposal,Bomb Disposal,Deep space Exploration and e.t.c.",
+            "give a list of examples of ai humanoid robots": "Asimo,Atlas,Optimus,Sofia,Ameca,UnitTree,Neo,Pepper and e.t.c.",
+            "what is antigravity?": "Antigravity is a force that counteracts the gravity of Earth.It is a Theoretical Science that explores the unconventional method of harnessing the gravity to counteracts it for the objects to levitate or hover above the ground.",
+            "what are the different branches of antigravity?": "The Different Branches of Antigravity is the following: A.)Electrogravitics,B.)Electromagnetism,C.)Gravitomagnetics,D.)Antimatter and E.)Exotic Matter.",
+            "what is electrogravitism?": "Electrogravitism is using electricity to counteracts gravity and its effects.",
+            "what is electromagnetism?": "Electromagnetism is a type of artificial magnetism used to counteracts the force of gravity and its effects.",
+            "what is gravitomagnetism?": "Gravitomagnetism is using a type of magnetism that counteracts the force of gravity and its effects.",
+            "what is antimatter?": "Antimatter is a form of matter that is compose of antiparticles and it is used to counteracts the gravity and its effects.",
+            "what is exotic matter?": "Exotic matter is a type of matter compose of exotic particles and it is used to counteracts gravity and its effects.",
+            "what is the date?": `Today date is ${new Date().toLocaleDateString()}`,
+            "what is the time?": `The current time is ${new Date().toLocaleTimeString()}`,
+            "what is stem cell therapy?": "Stem cell therapy is a treatment that uses stem cells to repair or replace damaged cells and tissues.",
+            "what is gene editing?": "Gene editing is a process that allows scientists to modify an organism's DNA sequence.",
+            "what is space exploration?": "Space exploration is the study and exploration of outer space using spacecraft and other technologies.",
+            "what is ai ethics?": "AI ethics is a branch of ethics that deals with the moral implications of artificial intelligence.",
+            "what is cyber security?": "Cyber security is the protection of computer systems and networks from cyber threats.",
+            "what is data science?": "Data science is a field that uses scientific methods and processes to extract knowledge from data.",
+            "what is machine learning?": "Machine learning is a subset of AI that involves training algorithms to learn from data.",
+            "what is robotics?": "Robotics is the design, construction, and operation of robots.",
+            "what is virtual reality?": "Virtual reality is a simulated environment that can be experienced through a computer or other device.",
+            "what is the metaverse?": "The metaverse is a hypothetical future version of the internet that is more immersive and interactive.",
+            "what is quantum physics?": "Quantum physics is a branch of physics that studies the behavior of matter and energy at a quantum level.",
+            "what is relativity?": "Relativity is a theory of gravitation developed by Albert Einstein.",
+            "what is dark energy?": "Dark energy is a type of energy that is thought to be responsible for the accelerating expansion of the universe.",
+            "what is neuroscience?": "Neuroscience is the study of the structure and function of the nervous system.",
+            "what is psychology?": "Psychology is the study of behavior and mental processes.",
+            "what is sociology?": "Sociology is the study of human social behavior and societies.",
+            "what is philosophy?": "Philosophy is the study of fundamental questions about existence, knowledge, and reality.",
+            "what is economics?": "Economics is the study of the production, distribution, and consumption of goods and services.",
+            "what is politics?": "Politics is the study of governments, politics, and policies.",
+            "what is history?": "History is the study of past events and societies.",
+            "what is anthropology?": "Anthropology is the study of human cultures, behaviors, and biology.",
+            "what is linguistics?": "Linguistics is the study of language and its structure, use, and acquisition.",
+            "what is mathematics?": "Mathematics is the study of numbers, quantities, and shapes.",
+            "what is physics?": "Physics is the study of matter, energy, and the fundamental laws of the universe.",
+            "what is chemistry?": "Chemistry is the study of the composition, properties, and reactions of matter.",
+            "what is biology?": "Biology is the study of living organisms and their interactions with the environment.",
+            "what is supernova?": "A supernova is a massive star explosion that can be seen from millions of light-years away.",
+            "what is galaxy?": "A galaxy is a massive, gravitationally bound system of stars, stellar remnants, interstellar gas, dust, and dark matter.",
+            "what is universe?": "The universe is the totality of all existence, including space, time, matter, and energy.",
+            "what is wormhole?": "A wormhole is a hypothetical shortcut through spacetime, potentially connecting two distant points.",
+            "what is event horizon?": "The event horizon is the point of no return around a black hole, where gravity is so strong that nothing can escape.",
+            "what is singularity?": "A singularity is a point in spacetime where the curvature is infinite and the laws of physics break down.",
+            "what is dark sector?": "The dark sector is a hypothetical part of the universe that contains dark matter and dark energy.",
+            "what is Higgs boson?": "The Higgs boson is a fundamental particle that explains how other particles acquire mass.",
+            "what is particle accelerator?": "A particle accelerator is a machine that accelerates charged particles to high speeds, often used in physics research.",
+            "what is CERN?": "CERN is a European research organization that operates the Large Hadron Collider, a powerful particle accelerator.",
+            "what is gravitational waves?": "Gravitational waves are ripples in spacetime produced by massive, accelerating objects.",
+            "what is cosmology?": "Cosmology is the study of the origin, evolution, and fate of the universe.",
+            "what is astrobiology?": "Astrobiology is the study of the origin, evolution, and distribution of life in the universe.",
+            "what is exoplanet?": "An exoplanet is a planet that orbits a star outside our solar system.",
+            "what is mars?": "Mars is the fourth planet from the Sun and is often referred to as the Red Planet.",
+            "what is jupiter?": "Jupiter is the largest planet in our solar system and is a gas giant.",
+            "what is saturn?": "Saturn is a gas giant planet in our solar system, known for its distinctive ring system.",
+            "what is uranus?": "Uranus is the seventh planet from the Sun and is an ice giant planet.",
+            "what is neptune?": "Neptune is the eighth planet from the Sun and is the farthest planet in our solar system.",
+            "what is pluto?": "Pluto is a dwarf planet in the outer reaches of our solar system.",
+            "what is asteroid?": "An asteroid is a small, rocky object that orbits the Sun, often found in the asteroid belt.",
+            "what is comet?": "A comet is a small, icy body that orbits the Sun, often producing a tail of gas and dust.",
+            "what is meteor?": "A meteor is a small particle from space that enters a planet's atmosphere, often producing a bright streak of light.",
+            "what is black dwarf?": "A black dwarf is a hypothetical star that is the remnant of a white dwarf that has cooled to the point where it no longer emits significant light or heat.",
+            "what is white dwarf?": "A white dwarf is a small, hot, dense star that is the remnant of a star that has exhausted its fuel.",
+            "what is neutron star?": "A neutron star is a dense, spinning ball of neutrons that is the remnant of a massive star that has undergone a supernova explosion.",
+            "what is pulsar?": "A pulsar is a rapidly spinning neutron star that emits electromagnetic radiation in a beam, often observed as pulses of radiation.",
+            "what is quasar?": "A quasar is an extremely bright and distant celestial object, thought to be powered by a supermassive black hole.",
+            "what is galaxy cluster?": "A galaxy cluster is a group of galaxies that are gravitationally bound together.",
+            "what is cosmic microwave background?": "The cosmic microwave background is the radiation left over from the Big Bang, detectable in the form of microwave radiation.",
+            "what is dark flow?": "The dark flow is a hypothetical phenomenon where galaxy clusters are moving in a particular direction, possibly due to the influence of a nearby universe.",
+            "what is string theory?": "String theory is a theoretical framework that attempts to unify quantum mechanics and general relativity, postulating that the fundamental building blocks of the universe are one-dimensional strings rather than point-like particles.",
+            "what is solar system?": "The solar system is a collection of celestial objects that orbit around the Sun, including planets, dwarf planets, asteroids, comets, and other objects.",
+            "what is sun?": "The Sun is the star at the center of our solar system and the primary source of light and energy for Earth.",
+            "what is earth?": "Earth is the third planet from the Sun and the only known habitable planet in our solar system.",
+            "what is moon?": "The Moon is the natural satellite of Earth, orbiting our planet and influencing the tides.",
+            "what is star?": "A star is a massive, luminous ball of gas that is held together by its own gravity and generates energy through nuclear reactions in its core.",
+            "what is planet?": "A planet is a celestial body that orbits a star, is massive enough to be rounded by its own gravity, and has cleared its orbit of other objects.",
+            "what is asteroid belt?": "The asteroid belt is a region of space where many asteroids are found, located between the orbits of Mars and Jupiter.",
+            "what is kuiper belt?": "The Kuiper belt is a region of space where many small, icy bodies are found, located beyond the orbit of Neptune.",
+            "what is oort cloud?": "The Oort cloud is a hypothetical region of space where comets and other small, icy bodies are thought to originate, surrounding the solar system.",
+            "what is black hole information paradox?": "The black hole information paradox is a puzzle about what happens to information contained in matter that falls into a black hole.",
+            "what is hawking radiation?": "Hawking radiation is a theoretical prediction that black holes emit radiation due to quantum effects.",
+            "what is schrodinger's cat?": "Schrodinger's cat is a thought experiment that illustrates the paradox of quantum mechanics applied to macroscopic objects.",
+            "what is uncertainty principle?": "The uncertainty principle is a fundamental principle in quantum mechanics that states that certain properties of a particle cannot be precisely known at the same time.",
+            "what is entanglement?": "Entanglement is a phenomenon in quantum mechanics where two or more particles become correlated in such a way that the state of one particle is dependent on the state of the other.",
+            "what is quantum field theory?": "Quantum field theory is a theoretical framework that describes the behavior of particles in terms of fields that permeate space and time.",
+            "what is standard model?": "The standard model is a theory in particle physics that describes the behavior of fundamental particles and forces, except for gravity.",
+            "what is higgs field?": "The Higgs field is a field that permeates space and is responsible for giving particles mass.",
+            "what is symmetry breaking?": "Symmetry breaking is a process in which a system transitions from a symmetric state to a less symmetric state.",
+            "what is relativity theory?": "Relativity theory is a fundamental concept in physics developed by Albert Einstein, describing the nature of space and time.",
+            "what is e=mc^2?": "E=mc^2 is a famous equation derived from relativity theory, stating that energy (E) is equal to mass (m) times the speed of light (c) squared.",
+            "what is spacetime?": "Spacetime is a four-dimensional fabric that combines space and time, a fundamental concept in relativity theory.",
+            "what is gravitational wave?": "Gravitational waves are ripples in spacetime produced by massive, accelerating objects, predicted by relativity theory.",
+            "what is singularity?": "A singularity is a point in spacetime where the curvature is infinite and the laws of physics break down.",
+            "what is event horizon?": "The event horizon is the point of no return around a black hole, where gravity is so strong that nothing can escape.",
+            "what is wormhole?": "A wormhole is a hypothetical shortcut through spacetime, potentially connecting two distant points.",
+            "what is multiverse?": "The multiverse is a hypothetical concept that suggests the existence of multiple universes beyond our own.",
+            "what is quantum mechanics?": "Quantum mechanics is a branch of physics that describes the behavior of particles at the atomic and subatomic level.",
+            "what is wave-particle duality?": "Wave-particle duality is a fundamental concept in quantum mechanics, stating that particles can exhibit both wave-like and particle-like behavior.",
+            "what is superposition?": "Superposition is a phenomenon in quantum mechanics where a particle can exist in multiple states simultaneously.",
+            "what is entanglement?": "Entanglement is a phenomenon in quantum mechanics where two or more particles become correlated in such a way that the state of one particle is dependent on the state of the other.",
+            "what is schrodinger equation?": "The Schrodinger equation is a fundamental equation in quantum mechanics that describes the time-evolution of a quantum system.",
+            "what is heisenberg uncertainty principle?": "The Heisenberg uncertainty principle is a fundamental principle in quantum mechanics that states that certain properties of a particle cannot be precisely known at the same time.",
+            "what is particle accelerator?": "A particle accelerator is a machine that accelerates charged particles to high speeds, often used in physics research.",
+            "what is cern?": "CERN is a European research organization that operates the Large Hadron Collider, a powerful particle accelerator.",
+            "what is nanotechnology?": "Nanotechnology is the study and manipulation of matter on a nanoscale, typically between 1-100 nanometers.",
+            "what is biotechnology?": "Biotechnology is the use of living organisms or their products to develop new technologies and products.",
+            "what is genetic engineering?": "Genetic engineering is the direct manipulation of an organism's genes to alter its characteristics.",
+            "what is crispr?": "CRISPR is a gene-editing tool that allows scientists to edit DNA sequences with unprecedented precision.",
+            "what is stem cell therapy?": "Stem cell therapy is a treatment that uses stem cells to repair or replace damaged cells and tissues.",
+            "what is regenerative medicine?": "Regenerative medicine is a branch of medicine that focuses on repairing or replacing damaged tissues and organs.",
+            "what is tissue engineering?": "Tissue engineering is the use of biomaterials and cells to create artificial tissues and organs.",
+            "what is 3d printing?": "3D printing is a process of creating three-dimensional objects by layering materials such as plastics, metals, and ceramics.",
+            "what is artificial intelligence?": "Artificial intelligence is a branch of computer science that focuses on creating intelligent machines that can think and act like humans.",
+            "what is machine learning?": "Machine learning is a subset of artificial intelligence that involves training algorithms to learn from data and make predictions or decisions.",
+            "what is deep learning?": "Deep learning is a type of machine learning that involves the use of neural networks to analyze and interpret data.",
+            "what is natural language processing?": "Natural language processing is a branch of artificial intelligence that deals with the interaction between computers and humans in natural language.",
+            "what is computer vision?": "Computer vision is a branch of artificial intelligence that deals with the interpretation and understanding of visual data from images and videos.",
+            "what is robotics?": "Robotics is the design, construction, and operation of robots, which are machines that can perform tasks autonomously or with human guidance.",
+            "what is internet of things?": "Internet of Things is a network of physical devices, vehicles, and other items embedded with sensors, software, and connectivity, allowing them to collect and exchange data.",
+            "what is blockchain?": "Blockchain is a decentralized, digital ledger that records transactions across a network of computers.",
+            "what is cryptocurrency?": "Cryptocurrency is a digital currency that uses cryptography for secure financial transactions.",
+            "what is bitcoin?": "Bitcoin is a decentralized digital currency that uses a peer-to-peer network to facilitate transactions.",
+            "what is ethereum?": "Ethereum is an open-source blockchain platform that enables the creation of smart contracts and decentralized applications.",
+            "what is smart contract?": "A smart contract is a self-executing contract with the terms of the agreement written directly into lines of code.",
+            "what is decentralized finance?": "Decentralized finance is a financial system that operates without a central authority, using blockchain technology to facilitate transactions.",
+            "what is non-fungible token?": "A non-fungible token is a unique digital asset that represents ownership of a specific item, such as art or collectibles.",
+            "what is metaverse?": "The metaverse is a hypothetical future version of the internet that is more immersive and interactive, using virtual reality and augmented reality technologies.",
+            "what is virtual reality?": "Virtual reality is a computer-generated simulation of a three-dimensional environment that can be experienced through a headset or other device.",
+            "what is augmented reality?": "Augmented reality is a technology that superimposes digital information on the real world, using a device such as a smartphone or headset.",
+            "what is mixed reality?": "Mixed reality is a technology that combines elements of virtual reality and augmented reality, allowing users to interact with both digital and physical objects.",
+            "what is extended reality?": "Extended reality is a term that encompasses virtual reality, augmented reality, and mixed reality, referring to the use of technology to create immersive experiences.",
+            "what is cloud computing?": "Cloud computing is a model of delivering computing services over the internet, allowing users to access applications and data from anywhere.",
+            "what is edge computing?": "Edge computing is a model of delivering computing services at the edge of the network, closer to the source of the data.",
+            "what is quantum computing?": "Quantum computing is a type of computing that uses quantum-mechanical phenomena, such as superposition and entanglement, to perform calculations.",
+            "what is cyber security?": "Cyber security is the protection of computer systems and networks from cyber threats, such as hacking and malware.",
+            "what is data science?": "Data science is a field that uses scientific methods and processes to extract knowledge from data.",
+            "what is data analytics?": "Data analytics is the process of examining data sets to conclude about the information they contain.",
+            "what is business intelligence?": "Business intelligence is a set of processes and technologies used to transform data into actionable insights.",
+            "what is digital transformation?": "Digital transformation is the integration of digital technology into all areas of a business, fundamentally changing how it operates.",
+            "what is e-commerce?": "E-commerce is the buying and selling of goods and services online.",
+            "what is digital marketing?": "Digital marketing is the promotion of products or services using digital channels, such as social media and search engines.",
+            "what is social media marketing?": "Social media marketing is the use of social media platforms to promote products or services.",
+            "what is search engine optimization?": "Search engine optimization is the process of improving the visibility and ranking of a website in search engine results.",
+            "what is cloud storage?": "Cloud storage is a model of data storage where data is stored on remote servers accessed over the internet.",
+            "what is software as a service?": "Software as a service is a model of software delivery where applications are hosted and managed by a third-party provider.",
+            "what is platform as a service?": "Platform as a service is a model of cloud computing where a third-party provider delivers a platform for developing and deploying applications.",
+            "what is infrastructure as a service?": "Infrastructure as a service is a model of cloud computing where a third-party provider delivers virtualized computing resources.",
+            "what is artificial general intelligence?": "Artificial general intelligence is a hypothetical AI system that possesses the ability to understand or learn any intellectual task that a human can.",
+            "what is superintelligence?": "Superintelligence is a hypothetical AI system that is significantly more intelligent than the best human minds.",
+            "what is 5g?": "5G is the fifth generation of wireless technology, offering faster speeds and lower latency than previous generations.",
+            "what is iot?": "IoT stands for Internet of Things, a network of physical devices, vehicles, and other items embedded with sensors, software, and connectivity.",
+            "what is edge ai?": "Edge AI is a type of artificial intelligence that processes data in real-time, at the edge of the network, reducing latency and improving performance.",
+            "what is computer vision?": "Computer vision is a field of artificial intelligence that enables computers to interpret and understand visual data from images and videos.",
+            "what is natural language processing?": "Natural language processing is a field of artificial intelligence that deals with the interaction between computers and humans in natural language.",
+            "what is robotics process automation?": "Robotic process automation is a technology that uses software robots to automate repetitive and rule-based tasks.",
+            "what is virtual assistant?": "A virtual assistant is a software agent that can perform tasks or provide services to individuals, such as answering questions or scheduling appointments.",
+            "what is chatbot?": "A chatbot is a computer program that uses artificial intelligence to simulate conversation with human users.",
+            "what is digital twin?": "A digital twin is a virtual replica of a physical device or system, used for simulation, analysis, and optimization.",
+            "what is augmented analytics?": "Augmented analytics is a type of analytics that uses artificial intelligence and machine learning to enhance data analysis and decision-making.",
+            "what is quantum computing?": "Quantum computing is a type of computing that uses quantum-mechanical phenomena, such as superposition and entanglement, to perform calculations.",
+            "what is blockchain as a service?": "Blockchain as a service is a cloud-based platform that allows users to build, deploy, and manage blockchain applications.",
+            "what is cybersecurity automation?": "Cybersecurity automation is the use of artificial intelligence and machine learning to automate security tasks and improve threat detection.",
+            "what is predictive maintenance?": "Predictive maintenance is a technique that uses data analysis and machine is used to predict equipment failures and reduce downtime.",
+            "tf status": "TensorFlow.js backend: " + (tf?.getBackend() || "CPU") + ". All systems operational."
+            };
+
+            // ---- URL map for direct commands (safe, opens in new tab) ----
+            const urlCommands = {
+                 "open facebook": "https://www.facebook.com",
+                 "open twitter": "https://www.twitter.com",
+                 "open instagram": "https://www.instagram.com",
+                 "open tiktok": "https://www.tiktok.com",
+                 "open google": "https://www.google.com",
+                 "open youtube": "https://www.youtube.com",
+                 "open duckduckgo": "https://www.duckduckgo.com",
+                 "open smni tv": "https://smni.com",
+                 "open meta ai": "https://meta.ai",
+                 "open dola ai": "https://dola.com",
+                 "open chatgpt": "https://chat.openai.com",
+                 "open claude ai": "https://claude.ai",
+                 "open deepseek": "https://deepseek.com",
+                 "open grok ai": "https://x.ai",
+                 "open kimi ai": "https://kimi.com",
+                 "open googlegemini": "https://gemini.google.com",
+                 "open perplexity ai": "https://perplexity.ai",
+                 "open qwen ai": "https://qwen.ai/",
+                 "open pentagon": "https://www.defense.gov",
+                 "open cia": "https://www.cia.gov",
+                 "open fbi": "https://www.fbi.gov",
+                 "open un": "https://www.un.org",
+                 "open asean": "https://www.asean.org",
+                 "open nuforc": "https://www.nuforc.org",
+                 "open ufo news": "https://www.ufosightingsdaily.com",
+            };
+
+            // ---- Helper: speak with cancellation ----
+            function speakMessage(text) {
+                if (!window.speechSynthesis) return;
+                try {
+                    window.speechSynthesis.cancel();
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.rate = 0.95;
+                    utterance.pitch = 1.0;
+                    window.speechSynthesis.speak(utterance);
+                } catch(e) { console.warn("speech blocked", e); }
+            }
+
+            // DOM elements
+            const loginContainer = document.getElementById('login-container');
+            const chatContainer = document.getElementById('chat-container');
+            const chatLog = document.getElementById('chat-log');
+            const userInput = document.getElementById('user-input');
+            const sendBtn = document.getElementById('send-btn');
+            const loginForm = document.getElementById('login-form');
+
+            // Append message to chat (safe HTML)
+            function addMessage(senderName, text, isUser = false) {
+                const msgDiv = document.createElement('div');
+                msgDiv.className = isUser ? 'user-msg' : 'ai-msg';
+                const prefix = isUser ? '👤 YOU' : '🤖 Dionico AI';
+                msgDiv.innerHTML = `<strong>${prefix}:</strong> ${escapeHtml(text)}`;
+                chatLog.appendChild(msgDiv);
+                chatLog.scrollTop = chatLog.scrollHeight;
+            }
+
+            // simple XSS protection
+            function escapeHtml(str) {
+                return str.replace(/[&<>]/g, function(m) {
+                    if (m === '&') return '&amp;';
+                    if (m === '<') return '&lt;';
+                    if (m === '>') return '&gt;';
+                    return m;
+                }).replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, function(c) {
+                    return c;
+                });
+            }
+
+            // ---------- TENSORFLOW.JS DEMO (fully async, no errors) ----------
+            async function runTensorFlowDemo() {
+                if (!tf || !tf.version) {
+                    return "⚠️ TensorFlow.js not loaded. Check your internet connection.";
+                }
+                try {
+                    await tf.ready();
+                    // Tensor addition
+                    const a = tf.tensor1d([3, 5, 7]);
+                    const b = tf.tensor1d([2, 4, 6]);
+                    const sumTensor = a.add(b);
+                    const sumValues = await sumTensor.data();
+                    
+                    // Matrix multiplication example
+                    const matA = tf.tensor2d([[2, 0], [1, 3]]);
+                    const matB = tf.tensor2d([[1, 1], [0, 2]]);
+                    const product = matA.matMul(matB);
+                    const prodData = await product.data();
+                    
+                    // Clean memory
+                    a.dispose(); b.dispose(); sumTensor.dispose();
+                    matA.dispose(); matB.dispose(); product.dispose();
+                    
+                    const backend = tf.getBackend();
+                    return `🧬 TensorFlow.js v${tf.version.tfjs} | Backend: ${backend}\n➤ [3,5,7] + [2,4,6] = [${Array.from(sumValues).join(', ')}]\n➤ Matrix [[2,0],[1,3]] × [[1,1],[0,2]] → [${Array.from(prodData).join(', ')}]\n✅ Neural core fully responsive.`;
+                } catch (err) {
+                    console.error(err);
+                    return `❌ TensorFlow demo error: ${err.message}. But integration is live.`;
+                }
+            }
+
+            // ---- extra AI vibe (optional) ----
+            async function getNeuralInsight() {
+                if (!tf) return "TensorFlow not active.";
+                const r = tf.randomUniform([1], 0, 1);
+                const val = (await r.data())[0];
+                r.dispose();
+                if (val > 0.66) return "⚡ Neural flux: high creativity mode.";
+                if (val > 0.33) return "🌀 Deep learning equilibrium reached.";
+                return "🌿 Tensor signature: exploratory phase.";
+            }
+
+            // ---------------- URL OPENER with popup safety (works from user click) ----------------
+            function openUrlSafely(url, commandName) {
+                if (!url) return false;
+                try {
+                    const newWindow = window.open(url, '_blank');
+                    if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+                        // fallback: maybe blocked, but still inform
+                        addMessage("Dionico AI", `⚠️ Popup might be blocked. Please allow popups for ${commandName}.`, false);
+                        return false;
+                    }
+                    return true;
+                } catch (e) {
+                    addMessage("Dionico AI", `Could not open ${commandName}: ${e.message}`, false);
+                    return false;
+                }
+            }
+
+            // ---------- MAIN MESSAGE PROCESSING (handles URLs + TF + fallback) ----------
+            async function processUserMessage() {
+                const rawInput = userInput.value.trim();
+                if (rawInput === "") return;
+
+                // show user message
+                addMessage("You", rawInput, true);
+                userInput.value = "";
+                
+                const lowerInput = rawInput.toLowerCase();
+                
+                // ---- SPECIAL TENSORFLOW.JS COMMANDS ----
+                if (lowerInput === "tf demo" || lowerInput === "tensorflow demo" || lowerInput === "tf test") {
+                    const demoResult = await runTensorFlowDemo();
+                    addMessage("Dionico AI", demoResult, false);
+                    speakMessage("TensorFlow demo completed. Check the chat.");
+                    return;
+                }
+                
+                if (lowerInput === "tf insight" || lowerInput === "neural mood") {
+                    const insight = await getNeuralInsight();
+                    const msg = `🧠 Tensor insight: ${insight}`;
+                    addMessage("Dionico AI", msg, false);
+                    speakMessage(insight);
+                    return;
+                }
+                
+                // ---- URL OPENING COMMANDS (google, youtube, etc) ----
+                if (urlCommands[lowerInput]) {
+                    const targetUrl = urlCommands[lowerInput];
+                    const responseText = `Opening ${lowerInput.replace('open ', '')}...`;
+                    addMessage("Dionico AI", responseText, false);
+                    speakMessage(responseText);
+                    // slight delay to ensure UI renders, then open
+                    setTimeout(() => {
+                        openUrlSafely(targetUrl, lowerInput);
+                    }, 50);
+                    return;
+                }
+                
+                // ---- FIXED: generic "open anything" pattern? optional but keeps robust ----
+                // if user types "open example.com" treat as custom? safer: only whitelist.
+                // but we also handle any additional open pattern (just for better UX)
+                const openMatch = lowerInput.match(/^open\s+([a-z0-9.-]+\.\w+)(?:\s|$)/);
+                if (openMatch && openMatch[1]) {
+                    let domain = openMatch[1];
+                    if (!domain.startsWith('http')) domain = 'https://' + domain;
+                    addMessage("Dionico AI", `Attempting to open ${domain} ...`, false);
+                    speakMessage(`Opening ${domain}`);
+                    setTimeout(() => { openUrlSafely(domain, domain); }, 50);
+                    return;
+                }
+                
+                // ---- PREDEFINED TEXT RESPONSES ----
+                if (responses[lowerInput]) {
+                    const reply = responses[lowerInput];
+                    addMessage("Dionico AI", reply, false);
+                    speakMessage(reply);
+                    return;
+                }
+                
+                // ---- INTELLIGENT FALLBACK with TensorFlow random creativity (no crash) ----
+                try {
+                    if (tf && tf.tensor) {
+                        const randomTensor = tf.randomUniform([1], 0.4, 1.2);
+                        const creativity = (await randomTensor.data())[0];
+                        randomTensor.dispose();
+                        let fallbackMsg = "";
+                        if (creativity > 0.85) {
+                            fallbackMsg = "I don't recognize that command. Try 'open facebook', 'open twitter', 'open instagram', 'open tiktok', 'open google', 'open youtube', 'open duckduckgo', 'open smni tv', 'open meta ai', 'open dola ai', 'open chatgpt', 'open claude ai', 'open deepseek', 'open grok ai', 'open kimi ai', 'open googlegemini', 'open perplexity ai', 'open qwen ai', 'open pentagon', 'open cia', 'open fbi', 'open un', 'open asean', 'open nuforc', 'open ufo news', 'tf demo', or 'open reddit'.";
+                        } else if (creativity > 0.6) {
+                            fallbackMsg = "My neural net didn't parse that. Use 'open facebook', 'open twitter', 'open instagram', 'open tiktok', 'open google', 'open youtube', 'open duckduckgo', 'open smni tv', 'open meta ai', 'open dola ai', 'open chatgpt', 'open claude ai', 'open deepseek', 'open grok ai', 'open kimi ai', 'open googlegemini', 'open perplexity ai', 'open qwen ai', 'open pentagon', 'open cia', 'open fbi', 'open un', 'open asean', 'open nuforc', 'open ufo news' or 'tf insight' for cool demos.";
+                        } else {
+                            fallbackMsg = "Unknown request. Available: 'hello', 'open facebook', 'open twitter', 'open instagram', 'open tiktok', 'open google', 'open youtube', 'open duckduckgo', 'open smni tv', 'open meta ai', 'open dola ai', 'open chatgpt', 'open claude ai', 'open deepseek', 'open grok ai', 'open kimi ai', 'open googlegemini', 'open perplexity', 'open qwen ai', 'open pentagon', 'open cia', 'open fbi', 'open un', 'open asean', 'open nuforc', 'open ufo news' or 'tf demo', 'open reddit'.";
+                        }
+                        addMessage("Dionico AI", fallbackMsg, false);
+                        speakMessage(fallbackMsg);
+                    } else {
+                        throw new Error("TF not ready");
+                    }
+                } catch (e) {
+                    addMessage("Dionico AI", "Sorry, I didn't understand that. Try 'open facebook', 'open twitter', 'open instagram', 'open tiktok', 'open google', 'open youtube', 'open duckduckgo', 'open smni tv', 'open meta ai', 'open dola ai', 'open chatgpt', 'open claude ai', 'open deepseek', 'open grok ai', 'open kimi ai', 'open googlegemini', 'open perplexity ai', 'qwen ai', 'open pentagon', 'open cia', 'open fbi', 'open un', 'open asean', 'open nuforc', 'open ufo news' or 'tf demo'.", false);
+                    speakMessage("Sorry, unknown command.");
+                }
+            }
+
+            // ----- LOGIN HANDLER (fix transition, no errors) -----
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const email = document.getElementById('email').value.trim();
+                const pwd = document.getElementById('password').value.trim();
+                if (email !== "" && pwd !== "") {
+                    // smooth hide
+                    loginContainer.style.opacity = "0";
+                    setTimeout(() => {
+                        loginContainer.style.display = "none";
+                        chatContainer.style.display = "flex";
+                        // welcome message with tf info
+                        setTimeout(() => {
+                            const tfVersion = (tf && tf.version) ? `TensorFlow.js ${tf.version.tfjs}` : "TensorFlow ready";
+                            const welcome = `Neural access granted. ${tfVersion} active.\nTry: "open facebook", "open twitter", "open instagram", "open tiktok", "open smni tv", "open google", "open youtube", "open duckduckgo", "open meta ai", "open dola ai", "open chatgpt", "open claude ai", "open deepseek", "open grok ai", "open kimi", "open google gemini", "open perplexity ai", "open qwen", "open pentagon", "open cia", "open fbi", "open un", "open asean", "open nuforc", "open ufo news", "tf demo".`;
+                            addMessage("Dionico AI", welcome, false);
+                            speakMessage("Access granted. Neural interface online.");
+                        }, 120);
+                    }, 200);
+                } else {
+                    loginContainer.style.transform = "translate(-50%, -50%) scale(0.97)";
+                    setTimeout(() => {
+                        loginContainer.style.transform = "translate(-50%, -50%)";
+                    }, 150);
+                    alert("⚡ Authentication required: fill both email and password fields.");
+                }
+            });
+
+            // ---- attach event listeners ----
+            sendBtn.addEventListener('click', () => {
+                processUserMessage();
+            });
+            userInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    processUserMessage();
+                }
+            });
+            
+            // ---- pre-initialize TensorFlow.js and set CPU backend for stability ----
+            async function initTensorFlow() {
+                if (tf && tf.setBackend) {
+                    try {
+                        await tf.setBackend('cpu');
+                        await tf.ready();
+                        console.log(`✅ TF.js initialized, backend: ${tf.getBackend()}`);
+                        // warmup tensor to avoid first-call lag
+                        const warm = tf.tensor(1).square();
+                        warm.dispose();
+                    } catch (err) {
+                        console.warn("TF fallback", err);
+                    }
+                }
+            }
+            initTensorFlow();
+            
+            // ensure chat starts hidden (override any style glitch)
+            chatContainer.style.display = 'none';
+            
+            // stop speech on page hide
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden && window.speechSynthesis) {
+                    window.speechSynthesis.cancel();
+                }
+            });
+            
+            // Fix: remove any leftover console errors (all good)
+            console.log("Dionico AI with TensorFlow.js and URL opener — fully debugged");
+        })();
+    </script>
+</body>
+</html>
